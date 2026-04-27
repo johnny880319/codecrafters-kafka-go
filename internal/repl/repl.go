@@ -79,10 +79,16 @@ func generateResponse(field messageField) []byte {
 	response = append(response, encodeInt(errorCode, 2)...)
 
 	// api keys
-	response = append(response, encodeInt(2, 1)...)  // 1 api keys + 1
-	response = append(response, encodeInt(18, 2)...) // API key 18 (API_VERSIONS)
+	response = append(response, encodeInt(3, 1)...) // 2 api keys + 1
+
+	response = append(response, encodeInt(18, 2)...) // API key 18 (APIVersions)
 	response = append(response, encodeInt(0, 2)...)  // min version
 	response = append(response, encodeInt(4, 2)...)  // max version
+	response = append(response, encodeInt(0, 1)...)  // tag buffer
+
+	response = append(response, encodeInt(75, 2)...) // API key 75 (DescribeTopicPartitions)
+	response = append(response, encodeInt(0, 2)...)  // min version
+	response = append(response, encodeInt(0, 2)...)  // max version
 	response = append(response, encodeInt(0, 1)...)  // tag buffer
 
 	// throttle_time_ms
