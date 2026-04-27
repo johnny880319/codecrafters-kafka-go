@@ -16,8 +16,8 @@ func main() {
 	}
 
 	defer func() {
-		if l.Close() != nil {
-			fmt.Fprintln(os.Stderr, err)
+		if closeErr := l.Close(); closeErr != nil {
+			fmt.Fprintln(os.Stderr, closeErr)
 		}
 	}()
 
@@ -29,7 +29,7 @@ func main() {
 		}
 
 		go func(conn net.Conn) {
-			err := repl.REPL(conn)
+			err := repl.HandleConnection(conn)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
