@@ -40,18 +40,28 @@ func REPL(conn net.Conn) (err error) {
 }
 
 type messageField struct {
-	correlationID int
+	requestAPIKey     int
+	requestAPIVersion int
+	correlationID     int
 }
 
 func parseMessage(b []byte) messageField {
 	return messageField{
-		correlationID: bytesToInt(b, 4, 4),
+		requestAPIKey:     bytesToInt(b, 0, 2),
+		requestAPIVersion: bytesToInt(b, 2, 2),
+		correlationID:     bytesToInt(b, 4, 4),
 	}
 }
 
 func generateResponse(field messageField) []byte {
 	var responseHeader []byte
 	responseHeader = append(responseHeader, intToBytes(field.correlationID, 4)...)
+
+	errorCode := 0
+	if field.requestAPIVersion >= 5 {
+		errorCode = 35 // 35 = UNSUPPORTED_VERSION
+	}
+	responseHeader = append(responseHeader, intToBytes(errorCode, 2)...)
 
 	responseSize := len(responseHeader)
 	response := append(intToBytes(responseSize, 4), responseHeader...)
