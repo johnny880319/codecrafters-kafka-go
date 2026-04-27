@@ -29,7 +29,10 @@ func REPL(conn net.Conn) (err error) {
 		if n != messageSize {
 			return fmt.Errorf("expected to read %d bytes, but read %d", messageSize, n)
 		}
-		message := parseMessage(buf)
+		message, err := parseMessage(buf)
+		if err != nil {
+			return fmt.Errorf("error parsing message: %w", err)
+		}
 		response := generateResponse(message)
 
 		_, err = conn.Write(response)
@@ -45,26 +48,42 @@ type messageField struct {
 	correlationID     int
 }
 
-func parseMessage(b []byte) messageField {
+func parseMessage(b []byte) (messageField, error) {
+	requestAPIKey := bytesToInt(b, 0, 2)
+	if requestAPIKey > 18 {
+		return messageField{}, fmt.Errorf("unsupported API key: %d", requestAPIKey)
+	}
+
 	return messageField{
-		requestAPIKey:     bytesToInt(b, 0, 2),
+		requestAPIKey:     requestAPIKey,
 		requestAPIVersion: bytesToInt(b, 2, 2),
 		correlationID:     bytesToInt(b, 4, 4),
-	}
+	}, nil
 }
 
 func generateResponse(field messageField) []byte {
-	var responseHeader []byte
-	responseHeader = append(responseHeader, intToBytes(field.correlationID, 4)...)
+	var response []byte
+	response = append(response, intToBytes(field.correlationID, 4)...)
 
 	errorCode := 0
 	if field.requestAPIVersion >= 5 {
 		errorCode = 35 // 35 = UNSUPPORTED_VERSION
 	}
-	responseHeader = append(responseHeader, intToBytes(errorCode, 2)...)
+	response = append(response, intToBytes(errorCode, 2)...)
 
-	responseSize := len(responseHeader)
-	response := append(intToBytes(responseSize, 4), responseHeader...)
+	// api keys
+	response = append(response, intToBytes(2, 1)...)  // 2 api keys
+	response = append(response, intToBytes(18, 2)...) // API key 18 (API_VERSIONS)
+	response = append(response, intToBytes(0, 2)...)  // min version
+	response = append(response, intToBytes(4, 2)...)  // max version
+	response = append(response, intToBytes(0, 1)...)  // tag buffer
+
+	// throttle_time_ms
+	response = append(response, intToBytes(0, 4)...)
+	response = append(response, intToBytes(0, 1)...) // tag buffer
+
+	responseSize := len(response)
+	response = append(intToBytes(responseSize, 4), response...)
 	return response
 }
 
