@@ -63,7 +63,7 @@ func decodeHeaderV2(b []byte) (headerContent, int, error) {
 
 	correlationID := int(binary.BigEndian.Uint32(b[offset : offset+4]))
 	offset += 4
-	clientIDLength := max(0, int(int16(binary.BigEndian.Uint16(b[offset:offset+2]))))
+	clientIDLength := max(int(int16(binary.BigEndian.Uint16(b[offset:offset+2]))), 0)
 	offset += 2
 
 	// client ID, tag buffer
