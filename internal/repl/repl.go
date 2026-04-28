@@ -1,3 +1,5 @@
+// Package repl provides functionality for handling Kafka protocol messages
+// over a TCP connection.
 package repl
 
 import (
@@ -8,6 +10,8 @@ import (
 	"net"
 )
 
+// HandleConnection handles a single TCP connection, reading Kafka protocol messages,
+// processing them, and writing responses until the connection is closed.
 func HandleConnection(conn net.Conn) (err error) {
 	defer func() {
 		err = errors.Join(err, conn.Close())
@@ -59,15 +63,15 @@ func readMessage(conn net.Conn) (requestHeader, []byte, error) {
 }
 
 func writeMessage(conn net.Conn, header requestHeader, body []byte) error {
-	headerBytes, err := encodeHeader(header)
+	response, err := encodeHeader(header)
 	if err != nil {
 		return fmt.Errorf("error encoding header: %w", err)
 	}
-	responseBytes, err := generateResponse(header, body)
+	responseBody, err := generateResponse(header, body)
 	if err != nil {
 		return fmt.Errorf("error generating response: %w", err)
 	}
-	response := append(headerBytes, responseBytes...)
+	response = append(response, responseBody...)
 	response = append(encodeInt(len(response), 4), response...)
 
 	_, err = conn.Write(response)

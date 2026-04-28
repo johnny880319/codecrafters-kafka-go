@@ -63,17 +63,20 @@ func decodeHeaderV2(b []byte) (headerContent, int, error) {
 
 	correlationID := int(binary.BigEndian.Uint32(b[offset : offset+4]))
 	offset += 4
+	//nolint:gosec // client ID length is actually a int16.
 	clientIDLength := max(int(int16(binary.BigEndian.Uint16(b[offset:offset+2]))), 0)
 	offset += 2
 
 	// client ID, tag buffer
 	if len(b) < offset+clientIDLength+1 {
-		return headerContent{}, 0, fmt.Errorf("expected to read %d bytes for client ID and tag buffer, but got %d", clientIDLength+1, len(b)-offset)
+		return headerContent{}, 0, fmt.Errorf(
+			"expected to read %d bytes for client ID and tag buffer, but got %d", clientIDLength+1, len(b)-offset,
+		)
 	}
 
 	offset += clientIDLength // We don't actually need the client ID currently.
 	tagBuffer := int(b[offset])
-	offset += 1
+	offset++
 
 	if tagBuffer != 0 {
 		return headerContent{}, 0, fmt.Errorf("expected tag buffer to be 0, but got %d", tagBuffer)

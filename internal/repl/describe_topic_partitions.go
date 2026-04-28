@@ -5,22 +5,22 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 	offset := 0
 
 	topicArrayLength := max(int(body[offset])-1, 0)
-	offset += 1
+	offset++
 
-	topic_names := make([]string, topicArrayLength)
+	topicNames := make([]string, topicArrayLength)
 	for i := 0; i < topicArrayLength; i++ {
 		topicNameLength := max(int(body[offset])-1, 0)
-		offset += 1
-		topic_names[i] = string(body[offset : offset+topicNameLength])
+		offset++
+		topicNames[i] = string(body[offset : offset+topicNameLength])
 		offset += topicNameLength
 	}
 
 	// write response
 	response := make([]byte, 0)
-	response = append(response, encodeInt(0, 4)...)                  // throttle_time_ms
-	response = append(response, encodeInt(len(topic_names)+1, 1)...) // topic array length
+	response = append(response, encodeInt(0, 4)...)                 // throttle_time_ms
+	response = append(response, encodeInt(len(topicNames)+1, 1)...) // topic array length
 
-	for _, topicName := range topic_names {
+	for _, topicName := range topicNames {
 		response = append(response, encodeInt(3, 2)...)                // error code UNKNOWN_TOPIC
 		response = append(response, encodeInt(len(topicName)+1, 1)...) // topic name length
 		response = append(response, []byte(topicName)...)              // topic name

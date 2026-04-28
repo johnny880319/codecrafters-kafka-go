@@ -1,6 +1,6 @@
 package repl
 
-func encodeAPIVersionsV4(header requestHeader, body []byte) ([]byte, error) {
+func encodeAPIVersionsV4(header requestHeader, _ []byte) ([]byte, error) {
 	var response []byte
 
 	errorCode := 0
