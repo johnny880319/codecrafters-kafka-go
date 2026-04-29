@@ -75,9 +75,14 @@ func decodeHeaderV2(b []byte) (headerContent, int, error) {
 	}
 
 	offset += clientIDLength // We don't actually need the client ID currently.
-	tagBuffer := int(b[offset])
-	offset++
+	tagBufferRaw, n := binary.Uvarint(b[offset:])
+	if n <= 0 {
+		return headerContent{}, 0, fmt.Errorf("error reading tag buffer length: %d", n)
+	}
+	offset += n
 
+	//nolint:gosec // we assume the client is well-behaved and won't send a huge tag buffer length.
+	tagBuffer := int(tagBufferRaw)
 	if tagBuffer != 0 {
 		return headerContent{}, 0, fmt.Errorf("expected tag buffer to be 0, but got %d", tagBuffer)
 	}
