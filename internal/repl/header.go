@@ -96,6 +96,6 @@ func encodeHeaderV0(headerContent headerContent) []byte {
 func encodeHeaderV1(headerContent headerContent) []byte {
 	var headerBytes []byte
 	headerBytes = append(headerBytes, encodeInt(headerContent.correlationID, 4)...)
-	headerBytes = append(headerBytes, encodeInt(0, 1)...) // tag buffer
+	headerBytes = binary.AppendUvarint(headerBytes, 0) // tag buffer
 	return headerBytes
 }
