@@ -1,6 +1,9 @@
+// Package main is the entry point for the my_kafka server, which listens for
+// TCP connections on port 9092 and handles them using the repl package.
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -9,7 +12,9 @@ import (
 )
 
 func main() {
-	l, err := net.Listen("tcp", "0.0.0.0:9092")
+	lc := net.ListenConfig{}
+
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:9092")
 	if err != nil {
 		fmt.Println("Failed to bind to port 9092")
 		os.Exit(1)
