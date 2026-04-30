@@ -59,7 +59,7 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 		response = binary.AppendUvarint(response, topicNameLengthRaws[i]) // topic name length
 		response = append(response, []byte(topicName)...)                 // topic name
 		if ok {
-			response = append(response, []byte(topicRecord.topicUUID)...) // topic ID
+			response = append(response, topicRecord.topicUUID[:]...) // topic ID
 		} else {
 			response = append(response, encodeInt(0, 16)...) // topic ID (null UUID)
 		}
@@ -82,19 +82,19 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 
 type topicRecord struct {
 	topicName string
-	topicUUID string
+	topicUUID [16]byte
 }
 
 type partitionRecord struct {
 	partitionID int
-	topicUUID   string
+	topicUUID   [16]byte
 	replicas    []int
 	ISRs        []int
 	leader      int
 	leaderEpoch int
 }
 
-func parseMetadata() (map[string]topicRecord, map[string][]partitionRecord, error) {
+func parseMetadata() (map[string]topicRecord, map[[16]byte][]partitionRecord, error) {
 	filePath := "/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log"
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -103,7 +103,7 @@ func parseMetadata() (map[string]topicRecord, map[string][]partitionRecord, erro
 	fmt.Fprint(os.Stderr, hex.Dump(fileBytes)) // for debugging
 
 	topicRecords := make(map[string]topicRecord)
-	partitionRecords := make(map[string][]partitionRecord)
+	partitionRecords := make(map[[16]byte][]partitionRecord)
 
 	offset := 0
 	for offset < len(fileBytes) {
@@ -123,8 +123,8 @@ func parseMetadata() (map[string]topicRecord, map[string][]partitionRecord, erro
 func parseBatch(
 	fileBytes []byte,
 	topicRecords map[string]topicRecord,
-	partitionRecords map[string][]partitionRecord,
-) (map[string]topicRecord, map[string][]partitionRecord, error) {
+	partitionRecords map[[16]byte][]partitionRecord,
+) (map[string]topicRecord, map[[16]byte][]partitionRecord, error) {
 	// skip:
 	// partition leader epoch (4 bytes), magic byte (1 byte), CRC (4 bytes),
 	// attributes (2 bytes), last offset delta (4 bytes), base timestamp (8 bytes),
@@ -153,8 +153,8 @@ func parseBatch(
 func parseRecord(
 	fileBytes []byte,
 	topicRecords map[string]topicRecord,
-	partitionRecords map[string][]partitionRecord,
-) (map[string]topicRecord, map[string][]partitionRecord, error) {
+	partitionRecords map[[16]byte][]partitionRecord,
+) (map[string]topicRecord, map[[16]byte][]partitionRecord, error) {
 	// skip:
 	// attributes (1 byte), timestamp delta (varint), offset delta (varint),
 	// key length (varint, assume 0), key (assume 0 bytes), value length (varint), frame version (1 byte)
@@ -173,7 +173,7 @@ func parseRecord(
 		if err != nil {
 			return nil, nil, err
 		}
-		topicRecords[tr.topicUUID] = tr
+		topicRecords[tr.topicName] = tr
 	}
 	if fileBytes[offset] == 0x03 {
 		pr, err := parsePartitionRecord(fileBytes[offset+1:])
@@ -201,7 +201,8 @@ func parseTopicRecord(fileBytes []byte) (topicRecord, error) {
 	topicName := string(fileBytes[offset : offset+nameLength])
 	offset += nameLength
 
-	topicUUID := hex.EncodeToString(fileBytes[offset : offset+16])
+	var topicUUID [16]byte
+	copy(topicUUID[:], fileBytes[offset:offset+16])
 	return topicRecord{
 		topicName: topicName,
 		topicUUID: topicUUID,
@@ -215,7 +216,8 @@ func parsePartitionRecord(fileBytes []byte) (partitionRecord, error) {
 	partitionID := int(binary.BigEndian.Uint32(fileBytes[offset : offset+4]))
 	offset += 4
 
-	topicUUID := hex.EncodeToString(fileBytes[offset : offset+16])
+	var topicUUID [16]byte
+	copy(topicUUID[:], fileBytes[offset:offset+16])
 	offset += 16
 
 	lengthOfReplicasArrayRaw, n := binary.Uvarint(fileBytes[offset:])
@@ -266,7 +268,7 @@ func parsePartitionRecord(fileBytes []byte) (partitionRecord, error) {
 	}, nil
 }
 
-func encodePartitionRecord(partitionRecords map[string][]partitionRecord, topicUUID string) []byte {
+func encodePartitionRecord(partitionRecords map[[16]byte][]partitionRecord, topicUUID [16]byte) []byte {
 	records, ok := partitionRecords[topicUUID]
 	if !ok {
 		var response []byte
