@@ -9,9 +9,12 @@ import (
 
 func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, error) {
 	// read metadata
-	if _, _, err := parseMetadata(); err != nil {
+	topicRecords, partitionRecords, err := parseMetadata()
+	if err != nil {
 		return nil, err
 	}
+	fmt.Fprintf(os.Stderr, "topicRecords: %+v\n", topicRecords)
+	fmt.Fprintf(os.Stderr, "partitionRecords: %+v\n", partitionRecords)
 
 	// read request
 	offset := 0
@@ -46,14 +49,29 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 	response = binary.AppendUvarint(response, topicArrayLengthRaw) // topic array length
 
 	for i, topicName := range topicNames {
-		response = append(response, encodeInt(3, 2)...)                   // error code UNKNOWN_TOPIC
+		topicRecord, ok := topicRecords[topicName]
+
+		if ok {
+			response = append(response, encodeInt(0, 2)...) // error code NONE
+		} else {
+			response = append(response, encodeInt(3, 2)...) // error code UNKNOWN_TOPIC
+		}
 		response = binary.AppendUvarint(response, topicNameLengthRaws[i]) // topic name length
 		response = append(response, []byte(topicName)...)                 // topic name
-		response = append(response, encodeInt(0, 16)...)                  // topic ID (null UUID)
-		response = append(response, encodeInt(0, 1)...)                   // is internal = false
-		response = binary.AppendUvarint(response, 1)                      // partition array length
-		response = append(response, encodeInt(0, 4)...)                   // topic authorized operations
-		response = binary.AppendUvarint(response, 0)                      // tag buffer
+		if ok {
+			response = append(response, []byte(topicRecord.topicUUID)...) // topic ID
+		} else {
+			response = append(response, encodeInt(0, 16)...) // topic ID (null UUID)
+		}
+		response = append(response, encodeInt(0, 1)...) // is internal = false
+		if ok {
+			responsePartitionRecords := encodePartitionRecord(partitionRecords, topicRecord.topicUUID)
+			response = append(response, responsePartitionRecords...)
+		} else {
+			response = binary.AppendUvarint(response, 1) // empty partition array length
+		}
+		response = append(response, encodeInt(0, 4)...) // topic authorized operations
+		response = binary.AppendUvarint(response, 0)    // tag buffer
 	}
 
 	response = append(response, encodeInt(255, 1)...) // next cursor = -1 (no more topics)
@@ -246,4 +264,38 @@ func parsePartitionRecord(fileBytes []byte) (partitionRecord, error) {
 		leader:      leader,
 		leaderEpoch: leaderEpoch,
 	}, nil
+}
+
+func encodePartitionRecord(partitionRecords map[string][]partitionRecord, topicUUID string) []byte {
+	records, ok := partitionRecords[topicUUID]
+	if !ok {
+		var response []byte
+		return binary.AppendUvarint(response, 1)
+	}
+
+	var response []byte
+	response = binary.AppendUvarint(response, uint64(len(records)+1))
+	for _, record := range records {
+		response = append(response, encodeInt(0, 2)...) // error code NONE
+		response = append(response, encodeInt(record.partitionID, 4)...)
+		response = append(response, encodeInt(record.leader, 4)...)
+		response = append(response, encodeInt(record.leaderEpoch, 4)...)
+
+		response = binary.AppendUvarint(response, uint64(len(record.replicas)+1))
+		for _, replica := range record.replicas {
+			response = append(response, encodeInt(replica, 4)...)
+		}
+
+		response = binary.AppendUvarint(response, uint64(len(record.ISRs)+1))
+		for _, isr := range record.ISRs {
+			response = append(response, encodeInt(isr, 4)...)
+		}
+
+		// Assume no eligible leaders replicas, last, known ELR, offline replicas.
+		for i := 0; i < 3; i++ {
+			response = binary.AppendUvarint(response, 1) // empty array length
+		}
+		response = binary.AppendUvarint(response, 0) // tag buffer
+	}
+	return response
 }
