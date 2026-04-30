@@ -33,9 +33,9 @@ func handleHeader(b []byte) (requestHeader, int, error) {
 
 func decodeHeader(requestAPIKey int, requestAPIVersion int, b []byte) (headerContent, int, error) {
 	switch requestAPIKey {
-	case 18:
+	case apiKeyAPIVersions:
 		return decodeHeaderV2(b)
-	case 75:
+	case apiKeyDescribeTopicPartitions:
 		return decodeHeaderV2(b)
 	default:
 		return headerContent{}, 0, fmt.Errorf("unsupported API key and version: %d, %d", requestAPIKey, requestAPIVersion)
@@ -44,9 +44,9 @@ func decodeHeader(requestAPIKey int, requestAPIVersion int, b []byte) (headerCon
 
 func encodeHeader(header requestHeader) ([]byte, error) {
 	switch header.requestAPIKey {
-	case 18:
+	case apiKeyAPIVersions:
 		return encodeHeaderV0(header.headerContent), nil
-	case 75:
+	case apiKeyDescribeTopicPartitions:
 		return encodeHeaderV1(header.headerContent), nil
 	default:
 		return nil, fmt.Errorf("unsupported API key and version: %d, %d", header.requestAPIKey, header.requestAPIVersion)

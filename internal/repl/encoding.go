@@ -20,6 +20,9 @@ func readCompactString(b []byte) (string, int, error) {
 		return "", 0, err
 	}
 
+	if len(b) < n+stringLength {
+		return "", 0, fmt.Errorf("error reading compact string: expected length %d, but got %d", n+stringLength, len(b))
+	}
 	compactString := string(b[n : n+stringLength])
 	return compactString, n + stringLength, nil
 }

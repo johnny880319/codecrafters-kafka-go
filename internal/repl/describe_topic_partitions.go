@@ -49,9 +49,9 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 		topicRecord, ok := topicRecords[topicName]
 
 		if ok {
-			response = append(response, encodeInt(0, 2)...) // error code NONE
+			response = append(response, encodeInt(errorCodeNone, 2)...) // error code
 		} else {
-			response = append(response, encodeInt(3, 2)...) // error code UNKNOWN_TOPIC
+			response = append(response, encodeInt(errorCodeUnknownTopicOrPartition, 2)...) // error code
 		}
 		response = binary.AppendUvarint(response, uint64(len(topicName)+1)) // topic name length
 		response = append(response, []byte(topicName)...)                   // topic name
@@ -87,7 +87,7 @@ func encodePartitionRecord(partitionRecords map[[16]byte][]partitionRecord, topi
 	var response []byte
 	response = binary.AppendUvarint(response, uint64(len(records)+1))
 	for _, record := range records {
-		response = append(response, encodeInt(0, 2)...) // error code NONE
+		response = append(response, encodeInt(errorCodeNone, 2)...) // error code NONE
 		response = append(response, encodeInt(record.partitionID, 4)...)
 		response = append(response, encodeInt(record.leader, 4)...)
 		response = append(response, encodeInt(record.leaderEpoch, 4)...)

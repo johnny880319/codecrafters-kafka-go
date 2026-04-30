@@ -83,9 +83,9 @@ func writeMessage(conn net.Conn, header requestHeader, body []byte) error {
 
 func generateResponse(header requestHeader, body []byte) ([]byte, error) {
 	switch header.requestAPIKey {
-	case 18:
+	case apiKeyAPIVersions:
 		return encodeAPIVersionsV4(header, body)
-	case 75:
+	case apiKeyDescribeTopicPartitions:
 		return encodeDescribeTopicPartitionsV0(header, body)
 	default:
 		return nil, fmt.Errorf("unsupported API key: %d", header.requestAPIKey)
