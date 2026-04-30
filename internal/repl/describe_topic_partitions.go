@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sort"
 )
 
 func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, error) {
@@ -28,7 +29,6 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 	topicArrayLength := max(int(topicArrayLengthRaw)-1, 0)
 
 	topicNames := make([]string, topicArrayLength)
-	topicNameLengthRaws := make([]uint64, topicArrayLength)
 	for i := 0; i < topicArrayLength; i++ {
 		topicNameLengthRaw, n := binary.Uvarint(body[offset:])
 		if n <= 0 {
@@ -36,19 +36,26 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 		}
 		offset += n
 
-		topicNameLengthRaws[i] = topicNameLengthRaw
 		//nolint:gosec // we assume the client is well-behaved and won't send a huge topic name length.
 		topicNameLength := max(int(topicNameLengthRaw)-1, 0)
 		topicNames[i] = string(body[offset : offset+topicNameLength])
 		offset += topicNameLength
+		_, n = binary.Uvarint(body[offset:]) // skip tag buffer
+		if n <= 0 {
+			return nil, fmt.Errorf("error reading tag buffer length: %d", n)
+		}
+		offset += n
 	}
+	sort.Strings(topicNames)
+
+	fmt.Fprintf(os.Stderr, "topicNames: %+v\n", topicNames)
 
 	// write response
 	response := make([]byte, 0)
 	response = append(response, encodeInt(0, 4)...)                // throttle_time_ms
 	response = binary.AppendUvarint(response, topicArrayLengthRaw) // topic array length
 
-	for i, topicName := range topicNames {
+	for _, topicName := range topicNames {
 		topicRecord, ok := topicRecords[topicName]
 
 		if ok {
@@ -56,8 +63,8 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 		} else {
 			response = append(response, encodeInt(3, 2)...) // error code UNKNOWN_TOPIC
 		}
-		response = binary.AppendUvarint(response, topicNameLengthRaws[i]) // topic name length
-		response = append(response, []byte(topicName)...)                 // topic name
+		response = binary.AppendUvarint(response, uint64(len(topicName)+1)) // topic name length
+		response = append(response, []byte(topicName)...)                   // topic name
 		if ok {
 			response = append(response, topicRecord.topicUUID[:]...) // topic ID
 		} else {
