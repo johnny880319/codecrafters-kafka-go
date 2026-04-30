@@ -115,16 +115,11 @@ func parseTopicRecord(fileBytes []byte) (topicRecord, error) {
 	// skip: version (1 byte)
 	offset := 1
 
-	nameLengthRaw, n := binary.Uvarint(fileBytes[offset:])
-	if n <= 0 {
-		return topicRecord{}, fmt.Errorf("error reading topic name length: %d", n)
+	topicName, n, err := readCompactString(fileBytes[offset:])
+	if err != nil {
+		return topicRecord{}, err
 	}
 	offset += n
-
-	//nolint:gosec // we assume the client is well-behaved and won't send a huge topic name length.
-	nameLength := max(int(nameLengthRaw)-1, 0)
-	topicName := string(fileBytes[offset : offset+nameLength])
-	offset += nameLength
 
 	var topicUUID [16]byte
 	copy(topicUUID[:], fileBytes[offset:offset+16])
@@ -145,28 +140,24 @@ func parsePartitionRecord(fileBytes []byte) (partitionRecord, error) {
 	copy(topicUUID[:], fileBytes[offset:offset+16])
 	offset += 16
 
-	lengthOfReplicasArrayRaw, n := binary.Uvarint(fileBytes[offset:])
-	if n <= 0 {
-		return partitionRecord{}, fmt.Errorf("error reading replicas array length: %d", n)
+	lengthOfReplicasArray, n, err := readCompactLength(fileBytes[offset:])
+	if err != nil {
+		return partitionRecord{}, err
 	}
 	offset += n
 
-	//nolint:gosec // we assume the client is well-behaved and won't send a huge replicas array length.
-	lengthOfReplicasArray := max(int(lengthOfReplicasArrayRaw)-1, 0)
 	replicas := make([]int, lengthOfReplicasArray)
 	for i := 0; i < lengthOfReplicasArray; i++ {
 		replicas[i] = int(binary.BigEndian.Uint32(fileBytes[offset : offset+4]))
 		offset += 4
 	}
 
-	lengthOfISRsArrayRaw, n := binary.Uvarint(fileBytes[offset:])
-	if n <= 0 {
-		return partitionRecord{}, fmt.Errorf("error reading ISRs array length: %d", n)
+	lengthOfISRsArray, n, err := readCompactLength(fileBytes[offset:])
+	if err != nil {
+		return partitionRecord{}, err
 	}
 	offset += n
 
-	//nolint:gosec // we assume the client is well-behaved and won't send a huge ISRs array length.
-	lengthOfISRsArray := max(int(lengthOfISRsArrayRaw)-1, 0)
 	isrs := make([]int, lengthOfISRsArray)
 	for i := 0; i < lengthOfISRsArray; i++ {
 		isrs[i] = int(binary.BigEndian.Uint32(fileBytes[offset : offset+4]))

@@ -16,26 +16,21 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 	// read request
 	offset := 0
 
-	topicArrayLengthRaw, n := binary.Uvarint(body[offset:])
-	if n <= 0 {
-		return nil, fmt.Errorf("error reading topic array length: %d", n)
+	topicArrayLength, n, err := readCompactLength(body[offset:])
+	if err != nil {
+		return nil, fmt.Errorf("error reading topic array length: %w", err)
 	}
 	offset += n
-	//nolint:gosec // we assume the client is well-behaved and won't send a huge topic array length.
-	topicArrayLength := max(int(topicArrayLengthRaw)-1, 0)
 
 	topicNames := make([]string, topicArrayLength)
 	for i := 0; i < topicArrayLength; i++ {
-		topicNameLengthRaw, n := binary.Uvarint(body[offset:])
-		if n <= 0 {
-			return nil, fmt.Errorf("error reading topic name length: %d", n)
+		topicName, n, err := readCompactString(body[offset:])
+		if err != nil {
+			return nil, err
 		}
 		offset += n
+		topicNames[i] = topicName
 
-		//nolint:gosec // we assume the client is well-behaved and won't send a huge topic name length.
-		topicNameLength := max(int(topicNameLengthRaw)-1, 0)
-		topicNames[i] = string(body[offset : offset+topicNameLength])
-		offset += topicNameLength
 		_, n = binary.Uvarint(body[offset:]) // skip tag buffer
 		if n <= 0 {
 			return nil, fmt.Errorf("error reading tag buffer length: %d", n)
@@ -46,8 +41,9 @@ func encodeDescribeTopicPartitionsV0(_ requestHeader, body []byte) ([]byte, erro
 
 	// write response
 	response := make([]byte, 0)
-	response = append(response, encodeInt(0, 4)...)                // throttle_time_ms
-	response = binary.AppendUvarint(response, topicArrayLengthRaw) // topic array length
+	response = append(response, encodeInt(0, 4)...) // throttle_time_ms
+	//nolint:gosec // we assume the client is well-behaved and won't send a huge topic array length.
+	response = binary.AppendUvarint(response, uint64(topicArrayLength)+1) // topic array length
 
 	for _, topicName := range topicNames {
 		topicRecord, ok := topicRecords[topicName]
